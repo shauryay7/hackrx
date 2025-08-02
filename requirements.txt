@@ -4,13 +4,6 @@ httpx
 pydantic
 python-docx
 pymupdf
-openai
-tiktoken
 pinecone
-langchain
-sentence-transformers
-transformers
-accelerate
-huggingface_hub
 python-dotenv
 requests
