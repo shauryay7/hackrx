@@ -1,24 +1,23 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+import torch
 
-# Use a Hugging Face small model (can be swapped)
-model_name = "mistralai/Mistral-7B-Instruct-v0.2"  # or "HuggingFaceH4/zephyr-7b-beta"
-
+model_name = "google/flan-t5-base"  # Or flan-t5-large for more quality
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto", torch_dtype="auto")
-llm = pipeline("text-generation", model=model, tokenizer=tokenizer)
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+)
+
+pipe = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0 if torch.cuda.is_available() else -1)
 
 def generate_structured_answer(question: str, context: str) -> str:
-    prompt = f"""Answer the following question based only on the given insurance document context. 
-Return a clear, policy-specific answer:
+    prompt = f"""You are a legal assistant for health insurance. Read the clauses below and answer the question with precise, clause-based information.
 
-### Question:
-{question}
+Context:
+\"\"\"{context}\"\"\"
 
-### Context:
-{context}
+Question: {question}
+Answer:"""
 
-### Answer:
-"""
-
-    response = llm(prompt, max_new_tokens=300, do_sample=False, temperature=0.2)
-    return response[0]['generated_text'].split("### Answer:")[-1].strip()
+    result = pipe(prompt, max_new_tokens=300, do_sample=False, temperature=0.3)[0]['generated_text']
+    return result.split("Answer:")[-1].strip()
