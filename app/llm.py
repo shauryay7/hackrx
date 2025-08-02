@@ -1,14 +1,15 @@
-from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
-import torch
+# app/llm.py
+import os
+import requests
 
-model_name = "google/flan-t5-base"  # Or flan-t5-large for more quality
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(
-    model_name,
-    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
-)
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")  # Set this in Render env variables
+HF_MODEL = "google/flan-t5-base"          # You can also try flan-t5-large
+HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
 
-pipe = pipeline("text-generation", model=model, tokenizer=tokenizer, device=0 if torch.cuda.is_available() else -1)
+headers = {
+    "Authorization": f"Bearer {HF_API_TOKEN}",
+    "Content-Type": "application/json"
+}
 
 def generate_structured_answer(question: str, context: str) -> str:
     prompt = f"""You are a legal assistant for health insurance. Read the clauses below and answer the question with precise, clause-based information.
@@ -19,5 +20,24 @@ Context:
 Question: {question}
 Answer:"""
 
-    result = pipe(prompt, max_new_tokens=300, do_sample=False, temperature=0.3)[0]['generated_text']
-    return result.split("Answer:")[-1].strip()
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 300,
+            "do_sample": False,
+            "temperature": 0.3
+        }
+    }
+
+    response = requests.post(HF_API_URL, headers=headers, json=payload)
+
+    try:
+        output = response.json()
+        if isinstance(output, list):
+            return output[0]["generated_text"].split("Answer:")[-1].strip()
+        elif "generated_text" in output:
+            return output["generated_text"].split("Answer:")[-1].strip()
+        else:
+            return f"[Error] Unexpected format: {output}"
+    except Exception as e:
+        return f"[Error] Hugging Face API failure: {str(e)}"

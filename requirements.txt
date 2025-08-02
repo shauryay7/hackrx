@@ -13,3 +13,4 @@ transformers
 accelerate
 huggingface_hub
 python-dotenv
+requests
