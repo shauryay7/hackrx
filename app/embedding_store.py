@@ -1,27 +1,32 @@
-# app/embedding_store.py
-
 import os
 from dotenv import load_dotenv
 from typing import List
-from sentence_transformers import SentenceTransformer
-from pinecone import Pinecone  # <- new
-import uuid
+from pinecone import Pinecone
+import httpx
 
 load_dotenv()
 
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX = os.getenv("PINECONE_INDEX")
 PINECONE_HOST = os.getenv("PINECONE_HOST")
-
-# Load embedding model
-model = SentenceTransformer("intfloat/multilingual-e5-base")  # ✅ Outputs 768-dim embeddings
+HF_API_TOKEN = os.getenv("HUGGINGFACE_API_KEY")  # Set this in Render ENV vars
 
 # Initialize Pinecone client
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index = pc.Index(name=PINECONE_INDEX, host=PINECONE_HOST)
 
 def get_embedding(text: str) -> List[float]:
-    return model.encode(text).tolist()
+    """
+    Get embedding from Hugging Face Inference API (sentence-transformers model).
+    """
+    url = "https://api-inference.huggingface.co/embeddings/sentence-transformers/all-MiniLM-L6-v2"
+    headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+    response = httpx.post(url, headers=headers, json={"inputs": text})
+
+    if response.status_code != 200:
+        raise Exception(f"Embedding API Error: {response.status_code}, {response.text}")
+
+    return response.json()["embedding"]
 
 def upsert_chunks_to_pinecone(doc_id: str, chunks: List[str]):
     vectors = []
@@ -38,7 +43,6 @@ def upsert_chunks_to_pinecone(doc_id: str, chunks: List[str]):
 
     index.upsert(vectors=vectors)
     print(f"✅ Uploaded {len(vectors)} chunks to Pinecone.")
-
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
     """
