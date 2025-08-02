@@ -9,3 +9,6 @@ tiktoken
 pinecone-client
 langchain
 sentence-transformers
+transformers
+accelerate
+huggingface_hub
